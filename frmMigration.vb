@@ -6,21 +6,14 @@ Imports Microsoft.Office.Interop
 Imports System.IO
 
 Public Class frmMigration
-
-    Dim cmdOrigin As SqlClient.SqlCommand
-    Dim cmdDestination As SqlClient.SqlCommand
-    Dim daOrigin As SqlClient.SqlDataAdapter
-    Dim daDestination As SqlClient.SqlDataAdapter
-    Dim dtOrigin, dtDestination As DataTable
-
-    Dim cnOrigin As SqlClient.SqlConnection
-    Dim cnDestination As SqlClient.SqlConnection
     Dim firstTable As String
 
     Dim analyzedTables As List(Of String)
     Dim diffs As List(Of String)
     Dim deletedTables As New List(Of String)
     Dim insertedTables As New List(Of String)
+
+    Dim sqlConn As New SQLConnection()
     Private Sub frmMigration_Load(sender As Object, e As EventArgs) Handles MyBase.Load
 
         ' Solo para testing
@@ -33,40 +26,17 @@ Public Class frmMigration
 
         Thread.CurrentThread.CurrentCulture = New CultureInfo("en-BZ", False)
         Thread.CurrentThread.CurrentCulture.ClearCachedData()
-
-        cnOrigin = New SqlClient.SqlConnection()
-        cnDestination = New SqlClient.SqlConnection()
     End Sub
 
     Private Sub connectToDatabase()
-        If cnOrigin.State = ConnectionState.Closed Or cnDestination.State = ConnectionState.Closed Then
-            Me.validateFields()
-
-            cnOrigin.ConnectionString = $"Data Source={Me.txtServer1.Text}; Initial Catalog={Me.txtDB1.Text}; User ID={Me.txtUser1.Text}; Password={Me.txtPass1.Text}"
-            cnDestination.ConnectionString = $"Data Source={Me.txtServer2.Text}; Initial Catalog={Me.txtDB2.Text}; User ID={Me.txtUser2.Text}; Password={Me.txtPass2.Text}"
-
-            cnOrigin.Open()
-            cnDestination.Open()
+        If Not Me.sqlConn.IsOpen() Then
+            Me.sqlConn.Open(Me.txtServer1.Text, Me.txtDB1.Text, Me.txtUser1.Text, Me.txtPass1.Text, Me.txtServer2.Text, Me.txtDB2.Text, Me.txtUser2.Text, Me.txtPass2.Text)
         End If
     End Sub
 
-    Private Sub validateFields()
-        ' Throw New NotImplementedException()
-    End Sub
-
     Private Sub Analyze(Optional inverse As Boolean = False)
-        Dim trans As SqlClient.SqlTransaction
-
         Try
             Me.connectToDatabase()
-
-            cmdOrigin = New SqlClient.SqlCommand
-            cmdDestination = New SqlClient.SqlCommand
-            daOrigin = New SqlClient.SqlDataAdapter(cmdOrigin)
-            daDestination = New SqlClient.SqlDataAdapter(cmdDestination)
-
-            cmdOrigin.Connection = cnOrigin
-            cmdDestination.Connection = cnDestination
 
             Me.analyzedTables = New List(Of String)
             Me.diffs = Me.getDiffs()
@@ -117,16 +87,6 @@ Public Class frmMigration
         Dim trans As SqlClient.SqlTransaction
 
         Try
-            Me.connectToDatabase()
-
-            cmdOrigin = New SqlClient.SqlCommand
-            cmdDestination = New SqlClient.SqlCommand
-            daOrigin = New SqlClient.SqlDataAdapter(cmdOrigin)
-            daDestination = New SqlClient.SqlDataAdapter(cmdDestination)
-
-            cmdOrigin.Connection = cnOrigin
-            cmdDestination.Connection = cnDestination
-
             Dim progress = 0
 
             ' Reseed and Delete
@@ -143,8 +103,8 @@ Public Class frmMigration
             ' Se vuelven a analizar las tablas pero de forma inversa
             Me.Analyze(True)
 
-            trans = cnDestination.BeginTransaction("TRANSFER")
-            cmdDestination.Transaction = trans
+            trans = sqlConn.CnDestination.BeginTransaction("TRANSFER")
+            sqlConn.CmdDestination.Transaction = trans
 
             ' Inserts
             For Each tableName In analyzedTables
@@ -170,11 +130,11 @@ Public Class frmMigration
         Dim tablesOriginStr As New List(Of String)
         Dim tablesDestinationStr As New List(Of String)
 
-        cmdOrigin.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
-        cmdDestination.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
+        sqlConn.CmdOrigin.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
+        sqlConn.CmdDestination.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
 
-        daOrigin.Fill(tablesOrigin)
-        daDestination.Fill(tablesDestination)
+        sqlConn.DaOrigin.Fill(tablesOrigin)
+        sqlConn.DaDestination.Fill(tablesDestination)
 
         For i As Integer = 0 To tablesOrigin.Rows.Count - 1
             tablesOriginStr.Add(tablesOrigin.Rows(i).Item("TABLE_NAME"))
@@ -190,22 +150,21 @@ Public Class frmMigration
     Private Sub ReseedAndDelete(tableName As String)
         Try
             Dim tableIsIdentity As Boolean
+            Dim dtDestination As New DataTable
 
-            cmdDestination.CommandText = $"select * from {tableName}"
+            sqlConn.CmdDestination.CommandText = $"select * from {tableName}"
+            sqlConn.DaDestination.Fill(dtDestination)
 
-            dtDestination = New DataTable
-            daDestination.Fill(dtDestination)
-
-            tableIsIdentity = Me.checkIdentity(cmdDestination, dtDestination.Clone(), tableName)
+            tableIsIdentity = Me.checkIdentity(dtDestination.Clone(), tableName)
 
             ' Se borra la tabla
-            cmdDestination.CommandText = $"delete from {tableName}"
-            cmdDestination.ExecuteNonQuery()
+            sqlConn.CmdDestination.CommandText = $"delete from {tableName}"
+            sqlConn.CmdDestination.ExecuteNonQuery()
 
             ' Se hace reseed
             If tableIsIdentity Then
-                cmdDestination.CommandText = $"dbcc checkident({tableName}, reseed, 1)"
-                cmdDestination.ExecuteNonQuery()
+                sqlConn.CmdDestination.CommandText = $"dbcc checkident({tableName}, reseed, 1)"
+                sqlConn.CmdDestination.ExecuteNonQuery()
             End If
 
             deletedTables.Add(tableName)
@@ -217,30 +176,29 @@ Public Class frmMigration
     Private Sub Insert(tableName As String)
         Try
             Dim tableIsIdentity As Boolean
+            Dim dtOrigin As New DataTable
+            Dim dtDestination As New DataTable
 
-            cmdOrigin.CommandText = $"select * from {tableName}"
-            cmdDestination.CommandText = $"select * from {tableName}"
+            sqlConn.CmdOrigin.CommandText = $"select * from {tableName}"
+            sqlConn.CmdDestination.CommandText = $"select * from {tableName}"
 
-            dtOrigin = New DataTable
-            dtDestination = New DataTable
+            sqlConn.DaOrigin.Fill(dtOrigin)
+            sqlConn.DaDestination.Fill(dtDestination)
 
-            daOrigin.Fill(dtOrigin)
-            daDestination.Fill(dtDestination)
-
-            tableIsIdentity = Me.checkIdentity(cmdDestination, dtDestination.Clone(), tableName)
+            tableIsIdentity = Me.checkIdentity(dtDestination.Clone(), tableName)
 
             For Each row As DataRow In dtOrigin.Rows
                 ' Si es identidad se pone en on
                 If tableIsIdentity Then
-                    Me.changeIdentity(cmdDestination, True, tableName)
+                    Me.changeIdentity(True, tableName)
                 End If
 
                 ' Se migran los datos
-                cmdDestination.CommandText = Me.generateInsertQuery(tableName, dtOrigin.Columns, dtDestination.Columns, row)
-                cmdDestination.ExecuteNonQuery()
+                sqlConn.CmdDestination.CommandText = Me.generateInsertQuery(tableName, dtOrigin.Columns, dtDestination.Columns, row)
+                sqlConn.CmdDestination.ExecuteNonQuery()
 
                 If tableIsIdentity Then
-                    Me.changeIdentity(cmdDestination, False, tableName)
+                    Me.changeIdentity(False, tableName)
                 End If
             Next
 
@@ -254,8 +212,8 @@ Public Class frmMigration
         Dim tables As New DataTable
         Dim tableNames As New List(Of String)
 
-        cmdDestination.CommandText = $"SELECT OBJECT_NAME(f.referenced_object_id) TableName FROM sys.foreign_keys AS f WHERE OBJECT_NAME (f.parent_object_id) = '{tableName}'"
-        daDestination.Fill(tables)
+        sqlConn.CmdDestination.CommandText = $"SELECT OBJECT_NAME(f.referenced_object_id) TableName FROM sys.foreign_keys AS f WHERE OBJECT_NAME (f.parent_object_id) = '{tableName}'"
+        sqlConn.DaDestination.Fill(tables)
 
         For i As Integer = 0 To tables.Rows.Count - 1
             tableNames.Add(tables.Rows(i).Item("TableName"))
@@ -268,8 +226,8 @@ Public Class frmMigration
         Dim tables As New DataTable
         Dim tableNames As New List(Of String)
 
-        cmdDestination.CommandText = $"SELECT OBJECT_NAME(f.parent_object_id) TableName FROM sys.foreign_keys AS f WHERE OBJECT_NAME (f.referenced_object_id) = '{tableName}'"
-        daDestination.Fill(tables)
+        sqlConn.CmdDestination.CommandText = $"SELECT OBJECT_NAME(f.parent_object_id) TableName FROM sys.foreign_keys AS f WHERE OBJECT_NAME (f.referenced_object_id) = '{tableName}'"
+        sqlConn.DaDestination.Fill(tables)
 
         For i As Integer = 0 To tables.Rows.Count - 1
             tableNames.Add(tables.Rows(i).Item("TableName"))
@@ -313,29 +271,25 @@ Public Class frmMigration
         Return $"insert into {tableName} {columnsNames} values {values}"
     End Function
 
-    Private Sub changeIdentity(cmd As SqlClient.SqlCommand, active As Boolean, table As String)
+    Private Sub changeIdentity(active As Boolean, table As String)
         Try
-            cmd.Connection = cnDestination
+            sqlConn.CmdDestination.CommandText = $"SET IDENTITY_INSERT {table} {IIf(active, "ON", "OFF")}"
 
-            cmd.CommandText = $"SET IDENTITY_INSERT {table} {IIf(active, "ON", "OFF")}"
-
-            cmd.ExecuteNonQuery()
+            sqlConn.CmdDestination.ExecuteNonQuery()
         Catch ex As Exception
             MsgBox(ex.Message)
         End Try
     End Sub
 
-    Private Function checkIdentity(cmd As SqlClient.SqlCommand, dt As DataTable, tableName As String) As Boolean
+    Private Function checkIdentity(dt As DataTable, tableName As String) As Boolean
         Dim isIdentity As Boolean = False
 
         Try
-            cmd.Connection = cnDestination
-
             For Each column As DataColumn In dt.Columns
 
-                cmd.CommandText = $"Select is_identity From sys.columns Where Name = '{column.ColumnName}' AND object_id = OBJECT_ID('{tableName}')"
+                sqlConn.CmdDestination.CommandText = $"Select is_identity From sys.columns Where Name = '{column.ColumnName}' AND object_id = OBJECT_ID('{tableName}')"
 
-                If cmd.ExecuteScalar() Then
+                If sqlConn.CmdDestination.ExecuteScalar() Then
                     isIdentity = True
                     Exit For
                 End If

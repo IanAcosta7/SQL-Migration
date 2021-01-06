@@ -44,7 +44,6 @@ Partial Class frmMigration
         Me.bgwMigrate = New System.ComponentModel.BackgroundWorker()
         Me.btnAnalyze = New System.Windows.Forms.Button()
         Me.bgwAnalyze = New System.ComponentModel.BackgroundWorker()
-        Me.lbInsertedTables = New System.Windows.Forms.ListBox()
         Me.lblAnalyze = New System.Windows.Forms.Label()
         Me.btnMigrate = New System.Windows.Forms.Button()
         Me.GroupBox1 = New System.Windows.Forms.GroupBox()
@@ -53,6 +52,7 @@ Partial Class frmMigration
         Me.cbReseedAndDelete = New System.Windows.Forms.CheckBox()
         Me.txtFirstTable = New System.Windows.Forms.TextBox()
         Me.btnExport = New System.Windows.Forms.Button()
+        Me.lbInsertedTables = New System.Windows.Forms.ListBox()
         Me.gbOrigin.SuspendLayout()
         Me.gbDestination.SuspendLayout()
         Me.GroupBox1.SuspendLayout()
@@ -248,22 +248,12 @@ Partial Class frmMigration
         'bgwAnalyze
         '
         '
-        'lbInsertedTables
-        '
-        Me.lbInsertedTables.FormattingEnabled = True
-        Me.lbInsertedTables.Location = New System.Drawing.Point(6, 29)
-        Me.lbInsertedTables.Name = "lbInsertedTables"
-        Me.lbInsertedTables.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
-        Me.lbInsertedTables.Size = New System.Drawing.Size(373, 225)
-        Me.lbInsertedTables.Sorted = True
-        Me.lbInsertedTables.TabIndex = 26
-        '
         'lblAnalyze
         '
         Me.lblAnalyze.AutoSize = True
         Me.lblAnalyze.BackColor = System.Drawing.Color.Transparent
         Me.lblAnalyze.ForeColor = System.Drawing.SystemColors.ControlText
-        Me.lblAnalyze.Location = New System.Drawing.Point(18, 445)
+        Me.lblAnalyze.Location = New System.Drawing.Point(6, 20)
         Me.lblAnalyze.Name = "lblAnalyze"
         Me.lblAnalyze.Size = New System.Drawing.Size(0, 13)
         Me.lblAnalyze.TabIndex = 27
@@ -281,6 +271,7 @@ Partial Class frmMigration
         'GroupBox1
         '
         Me.GroupBox1.Controls.Add(Me.clbAnalyzedTables)
+        Me.GroupBox1.Controls.Add(Me.lblAnalyze)
         Me.GroupBox1.Location = New System.Drawing.Point(12, 174)
         Me.GroupBox1.Name = "GroupBox1"
         Me.GroupBox1.Size = New System.Drawing.Size(385, 260)
@@ -291,9 +282,9 @@ Partial Class frmMigration
         'clbAnalyzedTables
         '
         Me.clbAnalyzedTables.FormattingEnabled = True
-        Me.clbAnalyzedTables.Location = New System.Drawing.Point(6, 25)
+        Me.clbAnalyzedTables.Location = New System.Drawing.Point(6, 40)
         Me.clbAnalyzedTables.Name = "clbAnalyzedTables"
-        Me.clbAnalyzedTables.Size = New System.Drawing.Size(373, 229)
+        Me.clbAnalyzedTables.Size = New System.Drawing.Size(373, 214)
         Me.clbAnalyzedTables.TabIndex = 0
         '
         'GroupBox2
@@ -333,6 +324,16 @@ Partial Class frmMigration
         Me.btnExport.Text = "Exportar a Excel"
         Me.btnExport.UseVisualStyleBackColor = True
         '
+        'lbInsertedTables
+        '
+        Me.lbInsertedTables.FormattingEnabled = True
+        Me.lbInsertedTables.Location = New System.Drawing.Point(6, 40)
+        Me.lbInsertedTables.Name = "lbInsertedTables"
+        Me.lbInsertedTables.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
+        Me.lbInsertedTables.Size = New System.Drawing.Size(373, 212)
+        Me.lbInsertedTables.Sorted = True
+        Me.lbInsertedTables.TabIndex = 26
+        '
         'frmMigration
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
@@ -344,7 +345,6 @@ Partial Class frmMigration
         Me.Controls.Add(Me.GroupBox2)
         Me.Controls.Add(Me.GroupBox1)
         Me.Controls.Add(Me.btnMigrate)
-        Me.Controls.Add(Me.lblAnalyze)
         Me.Controls.Add(Me.btnAnalyze)
         Me.Controls.Add(Me.gbDestination)
         Me.Controls.Add(Me.gbOrigin)
@@ -358,6 +358,7 @@ Partial Class frmMigration
         Me.gbDestination.ResumeLayout(False)
         Me.gbDestination.PerformLayout()
         Me.GroupBox1.ResumeLayout(False)
+        Me.GroupBox1.PerformLayout()
         Me.GroupBox2.ResumeLayout(False)
         Me.ResumeLayout(False)
         Me.PerformLayout()
@@ -386,7 +387,6 @@ Partial Class frmMigration
     Friend WithEvents bgwMigrate As System.ComponentModel.BackgroundWorker
     Friend WithEvents btnAnalyze As Button
     Friend WithEvents bgwAnalyze As System.ComponentModel.BackgroundWorker
-    Friend WithEvents lbInsertedTables As ListBox
     Friend WithEvents lblAnalyze As Label
     Friend WithEvents btnMigrate As Button
     Friend WithEvents GroupBox1 As GroupBox
@@ -395,4 +395,5 @@ Partial Class frmMigration
     Friend WithEvents txtFirstTable As TextBox
     Friend WithEvents clbAnalyzedTables As CheckedListBox
     Friend WithEvents btnExport As Button
+    Friend WithEvents lbInsertedTables As ListBox
 End Class
