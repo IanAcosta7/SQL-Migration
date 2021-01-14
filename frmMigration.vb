@@ -314,6 +314,7 @@ Public Class frmMigration
 
     Private Sub bgwMigrate_RunWorkerCompleted(sender As Object, e As RunWorkerCompletedEventArgs) Handles bgwMigrate.RunWorkerCompleted
         lbInsertedTables.DataSource = insertedTables
+        lblAmountInserted.Text = $"Cantidad: {insertedTables.Count()}"
         pbMigration.Value = 0
     End Sub
 
@@ -349,6 +350,7 @@ Public Class frmMigration
         cbReseedAndDelete.Enabled = True
         btnMigrate.Enabled = True
         lblAnalyze.Text = "Seleccione las tablas que desea migrar."
+        lblAmountAnalyzed.Text = $"Cantidad: {analyzedTables.Count()}"
         clbAnalyzedTables.DataSource = analyzedTables
 
         For i As Int64 = 0 To clbAnalyzedTables.Items.Count - 1
