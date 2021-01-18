@@ -12,6 +12,7 @@ Public Class frmMigration
     Dim diffs As List(Of String)
     Dim deletedTables As New List(Of String)
     Dim insertedTables As New List(Of String)
+    Dim notMigratedTables As New List(Of String)
 
     Dim sqlConn As New SQLConnection()
     Private Sub frmMigration_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -117,12 +118,29 @@ Public Class frmMigration
                 End If
             Next
 
+            notMigratedTables = getNotMigratedTables()
+
             trans.Commit()
         Catch ex As Exception
             trans.Rollback()
             MsgBox(ex.Message, MsgBoxStyle.Critical, "Error de Migración")
         End Try
     End Sub
+
+    Private Function getNotMigratedTables() As List(Of String)
+        Dim tablesOrigin As New DataTable
+        Dim tablesOriginStr As New List(Of String)
+
+        sqlConn.CmdOrigin.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
+
+        sqlConn.DaOrigin.Fill(tablesOrigin)
+
+        For i As Integer = 0 To tablesOrigin.Rows.Count - 1
+            tablesOriginStr.Add(tablesOrigin.Rows(i).Item("TABLE_NAME"))
+        Next
+
+        Return tablesOriginStr.Except(insertedTables).ToList()
+    End Function
 
     Private Function getDiffs() As List(Of String)
         Dim tablesOrigin As New DataTable
@@ -308,11 +326,13 @@ Public Class frmMigration
     End Sub
 
     Private Sub bgwMigrate_ProgressChanged(sender As Object, e As ProgressChangedEventArgs) Handles bgwMigrate.ProgressChanged
+        lbInsertedTables.DataSource = Nothing
         lbInsertedTables.DataSource = insertedTables
         pbMigration.Value = e.ProgressPercentage
     End Sub
 
     Private Sub bgwMigrate_RunWorkerCompleted(sender As Object, e As RunWorkerCompletedEventArgs) Handles bgwMigrate.RunWorkerCompleted
+        lbInsertedTables.DataSource = Nothing
         lbInsertedTables.DataSource = insertedTables
         lblAmountInserted.Text = $"Cantidad: {insertedTables.Count()}"
         pbMigration.Value = 0
@@ -375,6 +395,7 @@ Public Class frmMigration
 
             worksheet.Cells(1, "A") = "Tablas Analizadas"
             worksheet.Cells(1, "B") = "Tablas Migradas"
+            worksheet.Cells(1, "C") = "Tablas No Migradas"
 
             For i As Int64 = 1 To clbAnalyzedTables.Items.Count
                 worksheet.Cells(i + 1, "A") = clbAnalyzedTables.Items(i - 1)
@@ -382,6 +403,10 @@ Public Class frmMigration
 
             For i As Int64 = 1 To lbInsertedTables.Items.Count
                 worksheet.Cells(i + 1, "B") = lbInsertedTables.Items(i - 1)
+            Next
+
+            For i As Int64 = 1 To notMigratedTables.Count
+                worksheet.Cells(i + 1, "C") = notMigratedTables.ElementAt(i - 1)
             Next
 
             worksheet.Columns(1).AutoFit()
