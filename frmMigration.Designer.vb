@@ -47,14 +47,14 @@ Partial Class frmMigration
         Me.lblAnalyze = New System.Windows.Forms.Label()
         Me.btnMigrate = New System.Windows.Forms.Button()
         Me.GroupBox1 = New System.Windows.Forms.GroupBox()
+        Me.lblAmountAnalyzed = New System.Windows.Forms.Label()
         Me.GroupBox2 = New System.Windows.Forms.GroupBox()
+        Me.lblAmountInserted = New System.Windows.Forms.Label()
+        Me.lbInsertedTables = New System.Windows.Forms.ListBox()
         Me.cbReseedAndDelete = New System.Windows.Forms.CheckBox()
         Me.txtFirstTable = New System.Windows.Forms.TextBox()
         Me.btnExport = New System.Windows.Forms.Button()
-        Me.clbAnalyzedTables = New System.Windows.Forms.CheckedListBox()
-        Me.lbInsertedTables = New System.Windows.Forms.ListBox()
-        Me.lblAmountAnalyzed = New System.Windows.Forms.Label()
-        Me.lblAmountInserted = New System.Windows.Forms.Label()
+        Me.tvAnalyzed = New System.Windows.Forms.TreeView()
         Me.gbOrigin.SuspendLayout()
         Me.gbDestination.SuspendLayout()
         Me.GroupBox1.SuspendLayout()
@@ -272,8 +272,8 @@ Partial Class frmMigration
         '
         'GroupBox1
         '
+        Me.GroupBox1.Controls.Add(Me.tvAnalyzed)
         Me.GroupBox1.Controls.Add(Me.lblAmountAnalyzed)
-        Me.GroupBox1.Controls.Add(Me.clbAnalyzedTables)
         Me.GroupBox1.Controls.Add(Me.lblAnalyze)
         Me.GroupBox1.Location = New System.Drawing.Point(12, 174)
         Me.GroupBox1.Name = "GroupBox1"
@@ -281,6 +281,15 @@ Partial Class frmMigration
         Me.GroupBox1.TabIndex = 29
         Me.GroupBox1.TabStop = False
         Me.GroupBox1.Text = "Tablas Analizadas"
+        '
+        'lblAmountAnalyzed
+        '
+        Me.lblAmountAnalyzed.Location = New System.Drawing.Point(235, 235)
+        Me.lblAmountAnalyzed.Name = "lblAmountAnalyzed"
+        Me.lblAmountAnalyzed.RightToLeft = System.Windows.Forms.RightToLeft.No
+        Me.lblAmountAnalyzed.Size = New System.Drawing.Size(144, 21)
+        Me.lblAmountAnalyzed.TabIndex = 28
+        Me.lblAmountAnalyzed.TextAlign = System.Drawing.ContentAlignment.MiddleRight
         '
         'GroupBox2
         '
@@ -292,6 +301,25 @@ Partial Class frmMigration
         Me.GroupBox2.TabIndex = 30
         Me.GroupBox2.TabStop = False
         Me.GroupBox2.Text = "Tablas Migradas"
+        '
+        'lblAmountInserted
+        '
+        Me.lblAmountInserted.Location = New System.Drawing.Point(235, 235)
+        Me.lblAmountInserted.Name = "lblAmountInserted"
+        Me.lblAmountInserted.RightToLeft = System.Windows.Forms.RightToLeft.No
+        Me.lblAmountInserted.Size = New System.Drawing.Size(144, 21)
+        Me.lblAmountInserted.TabIndex = 29
+        Me.lblAmountInserted.TextAlign = System.Drawing.ContentAlignment.MiddleRight
+        '
+        'lbInsertedTables
+        '
+        Me.lbInsertedTables.FormattingEnabled = True
+        Me.lbInsertedTables.Location = New System.Drawing.Point(6, 19)
+        Me.lbInsertedTables.Name = "lbInsertedTables"
+        Me.lbInsertedTables.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
+        Me.lbInsertedTables.Size = New System.Drawing.Size(373, 212)
+        Me.lbInsertedTables.Sorted = True
+        Me.lbInsertedTables.TabIndex = 26
         '
         'cbReseedAndDelete
         '
@@ -320,41 +348,13 @@ Partial Class frmMigration
         Me.btnExport.Text = "Exportar a Excel"
         Me.btnExport.UseVisualStyleBackColor = True
         '
-        'clbAnalyzedTables
+        'tvAnalyzed
         '
-        Me.clbAnalyzedTables.FormattingEnabled = True
-        Me.clbAnalyzedTables.Location = New System.Drawing.Point(6, 19)
-        Me.clbAnalyzedTables.Name = "clbAnalyzedTables"
-        Me.clbAnalyzedTables.Size = New System.Drawing.Size(373, 214)
-        Me.clbAnalyzedTables.TabIndex = 0
-        '
-        'lbInsertedTables
-        '
-        Me.lbInsertedTables.FormattingEnabled = True
-        Me.lbInsertedTables.Location = New System.Drawing.Point(6, 19)
-        Me.lbInsertedTables.Name = "lbInsertedTables"
-        Me.lbInsertedTables.SelectionMode = System.Windows.Forms.SelectionMode.MultiExtended
-        Me.lbInsertedTables.Size = New System.Drawing.Size(373, 212)
-        Me.lbInsertedTables.Sorted = True
-        Me.lbInsertedTables.TabIndex = 26
-        '
-        'lblAmountAnalyzed
-        '
-        Me.lblAmountAnalyzed.Location = New System.Drawing.Point(235, 235)
-        Me.lblAmountAnalyzed.Name = "lblAmountAnalyzed"
-        Me.lblAmountAnalyzed.RightToLeft = System.Windows.Forms.RightToLeft.No
-        Me.lblAmountAnalyzed.Size = New System.Drawing.Size(144, 21)
-        Me.lblAmountAnalyzed.TabIndex = 28
-        Me.lblAmountAnalyzed.TextAlign = System.Drawing.ContentAlignment.MiddleRight
-        '
-        'lblAmountInserted
-        '
-        Me.lblAmountInserted.Location = New System.Drawing.Point(235, 235)
-        Me.lblAmountInserted.Name = "lblAmountInserted"
-        Me.lblAmountInserted.RightToLeft = System.Windows.Forms.RightToLeft.No
-        Me.lblAmountInserted.Size = New System.Drawing.Size(144, 21)
-        Me.lblAmountInserted.TabIndex = 29
-        Me.lblAmountInserted.TextAlign = System.Drawing.ContentAlignment.MiddleRight
+        Me.tvAnalyzed.CheckBoxes = True
+        Me.tvAnalyzed.Location = New System.Drawing.Point(6, 19)
+        Me.tvAnalyzed.Name = "tvAnalyzed"
+        Me.tvAnalyzed.Size = New System.Drawing.Size(373, 212)
+        Me.tvAnalyzed.TabIndex = 29
         '
         'frmMigration
         '
@@ -417,7 +417,7 @@ Partial Class frmMigration
     Friend WithEvents txtFirstTable As TextBox
     Friend WithEvents btnExport As Button
     Friend WithEvents lblAmountAnalyzed As Label
-    Friend WithEvents clbAnalyzedTables As CheckedListBox
     Friend WithEvents lbInsertedTables As ListBox
     Friend WithEvents lblAmountInserted As Label
+    Friend WithEvents tvAnalyzed As TreeView
 End Class
