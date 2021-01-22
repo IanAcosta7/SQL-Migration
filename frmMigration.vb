@@ -6,9 +6,9 @@ Imports Microsoft.Office.Interop
 Imports System.IO
 
 Public Class frmMigration
-    Dim firstTable As String
-
-    Dim analyzedTables As List(Of String)
+    Dim analyzedTreeCollection As New List(Of TreeNode)
+    Dim analyzedTables As New List(Of String)
+    Dim analyzedTablesCheck As New List(Of Boolean)
     Dim diffs As List(Of String)
     Dim deletedTables As New List(Of String)
     Dim insertedTables As New List(Of String)
@@ -22,7 +22,6 @@ Public Class frmMigration
         Me.txtDB2.Text = "BOFM"
         Me.txtUser1.Text = "sa"
         Me.txtUser2.Text = "sa"
-        Me.txtFirstTable.Text = "article"
         ' Solo para testing
 
         Thread.CurrentThread.CurrentCulture = New CultureInfo("en-BZ", False)
@@ -37,18 +36,186 @@ Public Class frmMigration
 
     Private Sub Analyze(Optional inverse As Boolean = False)
         Try
-            Me.connectToDatabase()
+            Dim nodes As List(Of String)
+            Dim newAnalyzedTables As New List(Of String)
+            Dim newAnalyzedTablesCheck As New List(Of Boolean)
 
-            Me.analyzedTables = New List(Of String)
+            Me.connectToDatabase()
             Me.diffs = Me.getDiffs()
 
-            Me.GetRelations(Me.firstTable, inverse)
+            If inverse Then
+                nodes = Me.GetBottomLevelChilds()
 
+                nodes.Sort()
+
+                For Each bottomLevelChild As String In nodes
+                    Me.AnalyzeRecursive(bottomLevelChild, inverse, newAnalyzedTables, newAnalyzedTablesCheck, New List(Of String))
+                Next
+            Else
+                nodes = Me.GetTopLevelParents()
+
+                nodes.Sort()
+
+                For Each topLevelParent As String In nodes
+                    Dim childNode = Me.AnalyzeRecursive(topLevelParent, inverse, newAnalyzedTables, newAnalyzedTablesCheck, New List(Of String))
+
+                    If childNode IsNot Nothing Then
+                        analyzedTreeCollection.Add(childNode)
+                    End If
+                Next
+            End If
+
+            Me.analyzedTables = newAnalyzedTables
+            Me.analyzedTablesCheck = newAnalyzedTablesCheck
         Catch ex As Exception
             MsgBox(ex.Message, MsgBoxStyle.Critical, "Error")
             Throw ex
         End Try
     End Sub
+
+    Private Function GetTopLevelParents() As List(Of String)
+        Dim topLevelParents As New List(Of String)
+        Dim dtParents As New DataTable()
+
+        sqlConn.CmdOrigin.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES LEFT JOIN sys.foreign_keys AS f ON TABLE_NAME = OBJECT_NAME(f.parent_object_id) WHERE TABLE_TYPE = 'BASE TABLE' AND OBJECT_NAME(f.parent_object_id) IS NULL"
+
+        sqlConn.DaOrigin.Fill(dtParents)
+
+        For i As Integer = 0 To dtParents.Rows.Count - 1
+            topLevelParents.Add(dtParents.Rows(i).Item("TABLE_NAME"))
+        Next
+
+        Return topLevelParents
+    End Function
+
+    Private Function GetBottomLevelChilds() As List(Of String)
+        Dim bottomLevelChilds As New List(Of String)
+        Dim dtChilds As New DataTable()
+
+        sqlConn.CmdOrigin.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES LEFT JOIN sys.foreign_keys AS f ON TABLE_NAME = OBJECT_NAME(f.referenced_object_id) WHERE TABLE_TYPE = 'BASE TABLE' AND OBJECT_NAME(f.referenced_object_id) IS NULL"
+
+        sqlConn.DaOrigin.Fill(dtChilds)
+
+        For i As Integer = 0 To dtChilds.Rows.Count - 1
+            bottomLevelChilds.Add(dtChilds.Rows(i).Item("TABLE_NAME"))
+        Next
+
+        Return bottomLevelChilds
+    End Function
+
+    'Private Function GetChildeNodeRecursive(tableName As String) As TreeNode
+    '    Dim node As New TreeNode()
+
+    '    If Not analyzedTables.Contains(tableName) Then
+    '        analyzedTables.Add(tableName)
+    '        analyzedTablesCheck.Add(True)
+
+    '        Dim analyzedTablesVal As List(Of String) = analyzedTables
+
+    '        Dim depTables = Me.getDepTables(tableName)
+    '        Dim refTables = Me.getRefTables(tableName)
+
+    '        ' Busca todos los hijos
+    '        refTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+    '        refTables.Sort()
+    '        For Each refTable As String In refTables
+    '            Dim childNode = Me.GetChildeNodeRecursive(refTable)
+
+    '            If childNode IsNot Nothing Then
+    '                node.Nodes.Add(childNode)
+    '            End If
+    '        Next
+
+    '        node.Checked = True
+    '        node.Text = tableName
+
+    '        ' Busca todos los padres
+    '        depTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+    '        depTables.Sort()
+    '        For Each depTable As String In depTables
+    '            Dim childNode = Me.GetChildeNodeRecursive(depTable)
+
+    '            If childNode IsNot Nothing Then
+    '                node.Nodes.Add(childNode)
+    '            End If
+    '        Next
+    '    End If
+
+    '    Return IIf(node.Text IsNot String.Empty, node, Nothing)
+    'End Function
+
+    Private Function AnalyzeRecursive(tableName As String, inverse As Boolean, newAnalyzedTables As List(Of String), newAnalyzedTablesCheck As List(Of Boolean), tablesAdded As List(Of String)) As TreeNode
+        Dim node As New TreeNode()
+
+        If tableName = "articleGroup" Then
+            Debugger.Break()
+        End If
+
+        If Not tablesAdded.Contains(tableName) And Not Me.diffs.Contains(tableName) Then
+            tablesAdded.Add(tableName)
+
+            Dim analyzedTablesVal As List(Of String) = newAnalyzedTables
+
+            Dim depTables = Me.getDepTables(tableName)
+            Dim refTables = Me.getRefTables(tableName)
+
+            If Not inverse Then
+                ' Busca todos los hijos
+                refTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+                refTables.Sort()
+                For Each refTable As String In refTables
+                    Dim childNode = Me.AnalyzeRecursive(refTable, inverse, newAnalyzedTables, newAnalyzedTablesCheck, tablesAdded)
+
+                    If childNode IsNot Nothing Then
+                        node.Nodes.Add(childNode)
+                    End If
+                Next
+            Else
+                ' Busca todos los padres sin guardar nodo
+                depTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+                depTables.Sort()
+                For Each depTable As String In depTables
+                    Me.AnalyzeRecursive(depTable, inverse, newAnalyzedTables, newAnalyzedTablesCheck, tablesAdded)
+                Next
+            End If
+
+            newAnalyzedTables.Add(tableName)
+            If Me.analyzedTables.Count > 0 And Me.analyzedTablesCheck.Count > 0 Then
+                ' Si las tablas ya fueron analizadas una vez se mantienen los check del usuario
+                newAnalyzedTablesCheck.Add(analyzedTablesCheck(analyzedTables.IndexOf(tableName)))
+            Else
+                newAnalyzedTablesCheck.Add(True)
+            End If
+
+            If Not inverse Then
+                ' Si es inverso no hay nodo
+                node.Checked = True
+                node.Text = tableName
+            End If
+
+            If Not inverse Then
+                ' Busca todos los padres
+                depTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+                depTables.Sort()
+                For Each depTable As String In depTables
+                    Dim childNode = Me.AnalyzeRecursive(depTable, inverse, newAnalyzedTables, newAnalyzedTablesCheck, tablesAdded)
+
+                    If childNode IsNot Nothing Then
+                        node.Nodes.Add(childNode)
+                    End If
+                Next
+            Else
+                ' Busca todos los hijos sin guardar nodo
+                refTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+                refTables.Sort()
+                For Each refTable As String In refTables
+                    Me.AnalyzeRecursive(refTable, inverse, newAnalyzedTables, newAnalyzedTablesCheck, tablesAdded)
+                Next
+            End If
+        End If
+
+        Return IIf(node.Text IsNot String.Empty, node, Nothing)
+    End Function
 
     Private Sub GetRelations(tableName As String, Optional inverse As Boolean = False)
         Dim analyzedTablesVal As List(Of String) = analyzedTables
@@ -71,6 +238,7 @@ Public Class frmMigration
 
         If Not analyzedTables.Contains(tableName) Then
             analyzedTables.Add(tableName)
+            analyzedTablesCheck.Add(True)
         End If
 
         If inverse Then
@@ -89,11 +257,15 @@ Public Class frmMigration
 
         Try
             Dim progress = 0
+            Dim tablesToMigrate As List(Of String) = Me.analyzedTables.Where(Function(Table, index) Me.analyzedTablesCheck.Item(index) = True).ToList()
+
+            ' Se vuelven a analizar las tablas pero de forma inversa
+            Me.Analyze(True)
 
             ' Reseed and Delete
             If reseedAndDelete Then
                 For Each tableName In analyzedTables
-                    If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
+                    If analyzedTablesCheck.Item(analyzedTables.IndexOf(tableName)) Then
                         Me.ReseedAndDelete(tableName)
                         progress += 1
                         DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / Me.analyzedTables.Count / 2)
@@ -101,20 +273,15 @@ Public Class frmMigration
                 Next
             End If
 
-            ' Se vuelven a analizar las tablas pero de forma inversa
-            Me.Analyze(True)
-
             trans = sqlConn.CnDestination.BeginTransaction("TRANSFER")
             sqlConn.CmdDestination.Transaction = trans
 
             ' Inserts
-            For Each tableName In analyzedTables
+            For Each tableName In tablesToMigrate
                 If Not Me.diffs.Contains(tableName) Then
-                    If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
-                        Me.Insert(tableName)
-                        progress += 1
-                        DirectCast(sender, BackgroundWorker).ReportProgress((progress * 100 / Me.analyzedTables.Count) / IIf(reseedAndDelete, 2, 1))
-                    End If
+                    Me.Insert(tableName)
+                    progress += 1
+                    DirectCast(sender, BackgroundWorker).ReportProgress((progress * 100 / Me.analyzedTables.Count) / IIf(reseedAndDelete, 2, 1))
                 End If
             Next
 
@@ -340,11 +507,6 @@ Public Class frmMigration
 
     Private Sub btnAnalyze_Click(sender As Object, e As EventArgs) Handles btnAnalyze.Click
         Try
-            'Me.tables = New String() {"article"}
-            If txtFirstTable.Text <> String.Empty Then
-                Me.firstTable = txtFirstTable.Text
-            End If
-
             pbMigration.Style = ProgressBarStyle.Marquee
             bgwAnalyze.RunWorkerAsync()
         Catch ex As Exception
@@ -371,13 +533,8 @@ Public Class frmMigration
         btnMigrate.Enabled = True
         lblAnalyze.Text = "Seleccione las tablas que desea migrar."
         lblAmountAnalyzed.Text = $"Cantidad: {analyzedTables.Count()}"
-        clbAnalyzedTables.DataSource = analyzedTables
 
-        For i As Int64 = 0 To clbAnalyzedTables.Items.Count - 1
-            If Not Me.diffs.Contains(clbAnalyzedTables.Items(i)) Then
-                clbAnalyzedTables.SetItemCheckState(i, CheckState.Checked)
-            End If
-        Next
+        tvAnalyzed.Nodes.AddRange(analyzedTreeCollection.ToArray)
     End Sub
 
     Private Sub btnExport_Click(sender As Object, e As EventArgs) Handles btnExport.Click
@@ -397,8 +554,8 @@ Public Class frmMigration
             worksheet.Cells(1, "B") = "Tablas Migradas"
             worksheet.Cells(1, "C") = "Tablas No Migradas"
 
-            For i As Int64 = 1 To clbAnalyzedTables.Items.Count
-                worksheet.Cells(i + 1, "A") = clbAnalyzedTables.Items(i - 1)
+            For i As Int64 = 1 To analyzedTablesCheck.Where(Function(check) check).Count
+                worksheet.Cells(i + 1, "A") = analyzedTables(i - 1)
             Next
 
             For i As Int64 = 1 To lbInsertedTables.Items.Count
@@ -423,5 +580,43 @@ Public Class frmMigration
         Catch ex As Exception
             MsgBox(ex.Message)
         End Try
+    End Sub
+
+    Private Sub btnSelectAll_Click(sender As Object, e As EventArgs) Handles btnSelectAll.Click
+        For Each node As TreeNode In tvAnalyzed.Nodes
+            Me.CheckRecursive(node, True)
+        Next
+    End Sub
+    Private Sub btnUnselectAll_Click(sender As Object, e As EventArgs) Handles btnUnselectAll.Click
+        For Each node As TreeNode In tvAnalyzed.Nodes
+            Me.CheckRecursive(node, False)
+        Next
+    End Sub
+
+    Private Sub CheckRecursive(node As TreeNode, check As Boolean)
+        node.Checked = check
+        Me.analyzedTablesCheck(Me.analyzedTables.IndexOf(node.Text)) = node.Checked
+
+        For Each childNode As TreeNode In node.Nodes
+            Me.CheckRecursive(childNode, check)
+        Next
+
+        If Not check Then
+            Me.UnselectParentsRecursive(node.Parent)
+        End If
+    End Sub
+
+    Private Sub UnselectParentsRecursive(parent As TreeNode)
+        If parent IsNot Nothing Then
+            parent.Checked = False
+            Me.analyzedTablesCheck(Me.analyzedTables.IndexOf(parent.Text)) = parent.Checked
+            Me.UnselectParentsRecursive(parent.Parent)
+        End If
+    End Sub
+
+    Private Sub tvAnalyzed_NodeMouseClick(sender As Object, e As TreeNodeMouseClickEventArgs) Handles tvAnalyzed.NodeMouseClick
+        Me.CheckRecursive(e.Node, e.Node.Checked)
+
+        lblAmountAnalyzed.Text = $"Cantidad: {analyzedTablesCheck.Where(Function(check As Boolean) check).Count()}"
     End Sub
 End Class

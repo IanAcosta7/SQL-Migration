@@ -47,14 +47,15 @@ Partial Class frmMigration
         Me.lblAnalyze = New System.Windows.Forms.Label()
         Me.btnMigrate = New System.Windows.Forms.Button()
         Me.GroupBox1 = New System.Windows.Forms.GroupBox()
+        Me.tvAnalyzed = New System.Windows.Forms.TreeView()
         Me.lblAmountAnalyzed = New System.Windows.Forms.Label()
         Me.GroupBox2 = New System.Windows.Forms.GroupBox()
         Me.lblAmountInserted = New System.Windows.Forms.Label()
         Me.lbInsertedTables = New System.Windows.Forms.ListBox()
         Me.cbReseedAndDelete = New System.Windows.Forms.CheckBox()
-        Me.txtFirstTable = New System.Windows.Forms.TextBox()
         Me.btnExport = New System.Windows.Forms.Button()
-        Me.tvAnalyzed = New System.Windows.Forms.TreeView()
+        Me.btnUnselectAll = New System.Windows.Forms.Button()
+        Me.btnSelectAll = New System.Windows.Forms.Button()
         Me.gbOrigin.SuspendLayout()
         Me.gbDestination.SuspendLayout()
         Me.GroupBox1.SuspendLayout()
@@ -282,6 +283,14 @@ Partial Class frmMigration
         Me.GroupBox1.TabStop = False
         Me.GroupBox1.Text = "Tablas Analizadas"
         '
+        'tvAnalyzed
+        '
+        Me.tvAnalyzed.CheckBoxes = True
+        Me.tvAnalyzed.Location = New System.Drawing.Point(6, 19)
+        Me.tvAnalyzed.Name = "tvAnalyzed"
+        Me.tvAnalyzed.Size = New System.Drawing.Size(373, 212)
+        Me.tvAnalyzed.TabIndex = 29
+        '
         'lblAmountAnalyzed
         '
         Me.lblAmountAnalyzed.Location = New System.Drawing.Point(235, 235)
@@ -324,6 +333,8 @@ Partial Class frmMigration
         'cbReseedAndDelete
         '
         Me.cbReseedAndDelete.AutoSize = True
+        Me.cbReseedAndDelete.Checked = True
+        Me.cbReseedAndDelete.CheckState = System.Windows.Forms.CheckState.Checked
         Me.cbReseedAndDelete.Enabled = False
         Me.cbReseedAndDelete.Location = New System.Drawing.Point(590, 148)
         Me.cbReseedAndDelete.Name = "cbReseedAndDelete"
@@ -331,13 +342,6 @@ Partial Class frmMigration
         Me.cbReseedAndDelete.TabIndex = 31
         Me.cbReseedAndDelete.Text = "Reseed y borrado de tablas"
         Me.cbReseedAndDelete.UseVisualStyleBackColor = True
-        '
-        'txtFirstTable
-        '
-        Me.txtFirstTable.Location = New System.Drawing.Point(93, 146)
-        Me.txtFirstTable.Name = "txtFirstTable"
-        Me.txtFirstTable.Size = New System.Drawing.Size(298, 20)
-        Me.txtFirstTable.TabIndex = 16
         '
         'btnExport
         '
@@ -348,22 +352,33 @@ Partial Class frmMigration
         Me.btnExport.Text = "Exportar a Excel"
         Me.btnExport.UseVisualStyleBackColor = True
         '
-        'tvAnalyzed
+        'btnUnselectAll
         '
-        Me.tvAnalyzed.CheckBoxes = True
-        Me.tvAnalyzed.Location = New System.Drawing.Point(6, 19)
-        Me.tvAnalyzed.Name = "tvAnalyzed"
-        Me.tvAnalyzed.Size = New System.Drawing.Size(373, 212)
-        Me.tvAnalyzed.TabIndex = 29
+        Me.btnUnselectAll.Location = New System.Drawing.Point(212, 144)
+        Me.btnUnselectAll.Name = "btnUnselectAll"
+        Me.btnUnselectAll.Size = New System.Drawing.Size(113, 23)
+        Me.btnUnselectAll.TabIndex = 34
+        Me.btnUnselectAll.Text = "Deseleccionar todos"
+        Me.btnUnselectAll.UseVisualStyleBackColor = True
+        '
+        'btnSelectAll
+        '
+        Me.btnSelectAll.Location = New System.Drawing.Point(93, 144)
+        Me.btnSelectAll.Name = "btnSelectAll"
+        Me.btnSelectAll.Size = New System.Drawing.Size(113, 23)
+        Me.btnSelectAll.TabIndex = 35
+        Me.btnSelectAll.Text = "Seleccionar todos"
+        Me.btnSelectAll.UseVisualStyleBackColor = True
         '
         'frmMigration
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.ClientSize = New System.Drawing.Size(800, 474)
+        Me.Controls.Add(Me.btnSelectAll)
+        Me.Controls.Add(Me.btnUnselectAll)
         Me.Controls.Add(Me.btnExport)
         Me.Controls.Add(Me.cbReseedAndDelete)
-        Me.Controls.Add(Me.txtFirstTable)
         Me.Controls.Add(Me.GroupBox2)
         Me.Controls.Add(Me.GroupBox1)
         Me.Controls.Add(Me.btnMigrate)
@@ -414,10 +429,11 @@ Partial Class frmMigration
     Friend WithEvents GroupBox1 As GroupBox
     Friend WithEvents GroupBox2 As GroupBox
     Friend WithEvents cbReseedAndDelete As CheckBox
-    Friend WithEvents txtFirstTable As TextBox
     Friend WithEvents btnExport As Button
     Friend WithEvents lblAmountAnalyzed As Label
     Friend WithEvents lbInsertedTables As ListBox
     Friend WithEvents lblAmountInserted As Label
     Friend WithEvents tvAnalyzed As TreeView
+    Friend WithEvents btnUnselectAll As Button
+    Friend WithEvents btnSelectAll As Button
 End Class
