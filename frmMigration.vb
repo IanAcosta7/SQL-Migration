@@ -96,7 +96,7 @@ Public Class frmMigration
                     If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
                         Me.ReseedAndDelete(tableName)
                         progress += 1
-                        DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / Me.analyzedTables.Count / 2)
+                        DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / (Me.clbAnalyzedTables.CheckedItems.Count * 2))
                     End If
                 Next
             End If
@@ -113,7 +113,7 @@ Public Class frmMigration
                 If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
                     Me.Insert(tableName)
                     progress += 1
-                    DirectCast(sender, BackgroundWorker).ReportProgress((progress * 100 / Me.analyzedTables.Count) / IIf(reseedAndDelete, 2, 1))
+                    DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / (Me.clbAnalyzedTables.CheckedItems.Count * IIf(reseedAndDelete, 2, 1)))
                 End If
             Next
 
@@ -195,7 +195,7 @@ Public Class frmMigration
             Dim tableIsIdentity As Boolean
             Dim dtDestination As New DataTable
 
-            sqlConn.CmdDestination.CommandText = $"select * from {tableName}"
+            sqlConn.CmdDestination.CommandText = $"select top 0 * from {tableName}"
             sqlConn.DaDestination.Fill(dtDestination)
 
             tableIsIdentity = Me.checkIdentity(dtDestination.Clone(), tableName)
@@ -219,46 +219,72 @@ Public Class frmMigration
     Private Sub Insert(tableName As String)
         Try
             Dim tableIsIdentity As Boolean
-            Dim dtOrigin As New DataTable
-            Dim dtDestination As New DataTable
+            Dim dtOrigin As DataTable
+            Dim dtDestination As DataTable
+            Dim page As Int64 = 0
 
-            sqlConn.CmdOrigin.CommandText = $"select * from {tableName}"
-            sqlConn.CmdDestination.CommandText = $"select * from {tableName}"
+            Do
+                dtOrigin = SelectPage(tableName, page, "origin")
+                dtDestination = SelectPage(tableName, page, "destination")
 
-            sqlConn.DaOrigin.Fill(dtOrigin)
-            sqlConn.DaDestination.Fill(dtDestination)
+                If tableIsIdentity = Nothing Then
+                    tableIsIdentity = Me.checkIdentity(dtDestination.Clone(), tableName)
+                End If
 
-            tableIsIdentity = Me.checkIdentity(dtDestination.Clone(), tableName)
-
-            For Each row As DataRow In dtOrigin.Rows
                 ' Si es identidad se pone en on
                 If tableIsIdentity Then
                     Me.changeIdentity(True, tableName)
                 End If
 
-                ' Se migran los datos
-                sqlConn.CmdDestination.CommandText = Me.generateInsertQuery(tableName, dtOrigin.Columns, dtDestination.Columns, row)
-                If sqlConn.CmdDestination.CommandText <> String.Empty Then
-                    sqlConn.CmdDestination.ExecuteNonQuery()
-                    sqlConn.CmdDestination.Parameters.Clear()
-                Else
-                    If tableIsIdentity Then
-                        Me.changeIdentity(False, tableName)
-                    End If
+                For Each row As DataRow In dtOrigin.Rows
 
-                    Exit For
-                End If
+                    ' Se migran los datos
+                    sqlConn.CmdDestination.CommandText = Me.generateInsertQuery(tableName, dtOrigin.Columns, dtDestination.Columns, row)
+                    If sqlConn.CmdDestination.CommandText <> String.Empty Then
+                        sqlConn.CmdDestination.ExecuteNonQuery()
+
+                        If sqlConn.CmdDestination.Parameters.Count > 0 Then
+                            sqlConn.CmdDestination.Parameters.Clear()
+                        End If
+                    Else
+                        Exit For
+                    End If
+                Next
 
                 If tableIsIdentity Then
                     Me.changeIdentity(False, tableName)
                 End If
-            Next
+
+                page += 1
+            Loop While dtOrigin.Rows.Count > 0 Or dtDestination.Rows.Count > 0
 
             insertedTables.Add(tableName)
         Catch ex As Exception
             Throw ex
         End Try
     End Sub
+
+    Private Function SelectPage(tableName As String, page As Long, db As String) As DataTable
+        ' Consulta Select de una tabla realizada por páginas, el "ORDER BY GETDATE()" solamente se utiliza como constante
+        ' Significa que la consulta no se debe ordenar. Ya que SQL 2008 requiere un orden en esta consulta, pero no
+        ' permite utilizar ORDER BY NULL.
+
+        Dim dt As New DataTable
+        Dim pageSize As Integer = 10000
+        Dim cmd As String = $"SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY GETDATE()) AS RowNum, * FROM {tableName}) AS RowConstrainedResult WHERE RowNum >= {1 + pageSize * page} AND RowNum <= {pageSize + pageSize * page} ORDER BY RowNum"
+
+        If db = "origin" Then
+            sqlConn.CmdOrigin.CommandText = cmd
+            sqlConn.DaOrigin.Fill(dt)
+        Else
+            sqlConn.CmdDestination.CommandText = cmd
+            sqlConn.DaDestination.Fill(dt)
+        End If
+
+        dt.Columns.Remove("RowNum")
+
+        Return dt
+    End Function
 
     Private Sub SelectTable(tableName As String, db As String)
 
@@ -478,5 +504,17 @@ Public Class frmMigration
         Catch ex As Exception
             MsgBox(ex.Message)
         End Try
+    End Sub
+
+    Private Sub btnSelectAll_Click(sender As Object, e As EventArgs) Handles btnSelectAll.Click
+        For i As Integer = 0 To clbAnalyzedTables.Items.Count - 1
+            clbAnalyzedTables.SetItemChecked(i, True)
+        Next
+    End Sub
+
+    Private Sub btnUnselectAll_Click(sender As Object, e As EventArgs) Handles btnUnselectAll.Click
+        For i As Integer = 0 To clbAnalyzedTables.Items.Count - 1
+            clbAnalyzedTables.SetItemChecked(i, False)
+        Next
     End Sub
 End Class

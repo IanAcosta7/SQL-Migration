@@ -54,6 +54,8 @@ Partial Class frmMigration
         Me.lbInsertedTables = New System.Windows.Forms.ListBox()
         Me.cbReseedAndDelete = New System.Windows.Forms.CheckBox()
         Me.btnExport = New System.Windows.Forms.Button()
+        Me.btnUnselectAll = New System.Windows.Forms.Button()
+        Me.btnSelectAll = New System.Windows.Forms.Button()
         Me.gbOrigin.SuspendLayout()
         Me.gbDestination.SuspendLayout()
         Me.GroupBox1.SuspendLayout()
@@ -331,6 +333,8 @@ Partial Class frmMigration
         'cbReseedAndDelete
         '
         Me.cbReseedAndDelete.AutoSize = True
+        Me.cbReseedAndDelete.Checked = True
+        Me.cbReseedAndDelete.CheckState = System.Windows.Forms.CheckState.Checked
         Me.cbReseedAndDelete.Enabled = False
         Me.cbReseedAndDelete.Location = New System.Drawing.Point(590, 148)
         Me.cbReseedAndDelete.Name = "cbReseedAndDelete"
@@ -348,11 +352,31 @@ Partial Class frmMigration
         Me.btnExport.Text = "Exportar a Excel"
         Me.btnExport.UseVisualStyleBackColor = True
         '
+        'btnUnselectAll
+        '
+        Me.btnUnselectAll.Location = New System.Drawing.Point(209, 144)
+        Me.btnUnselectAll.Name = "btnUnselectAll"
+        Me.btnUnselectAll.Size = New System.Drawing.Size(110, 23)
+        Me.btnUnselectAll.TabIndex = 34
+        Me.btnUnselectAll.Text = "Deseleccionar todo"
+        Me.btnUnselectAll.UseVisualStyleBackColor = True
+        '
+        'btnSelectAll
+        '
+        Me.btnSelectAll.Location = New System.Drawing.Point(93, 144)
+        Me.btnSelectAll.Name = "btnSelectAll"
+        Me.btnSelectAll.Size = New System.Drawing.Size(110, 23)
+        Me.btnSelectAll.TabIndex = 35
+        Me.btnSelectAll.Text = "Seleccionar todo"
+        Me.btnSelectAll.UseVisualStyleBackColor = True
+        '
         'frmMigration
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.ClientSize = New System.Drawing.Size(800, 474)
+        Me.Controls.Add(Me.btnSelectAll)
+        Me.Controls.Add(Me.btnUnselectAll)
         Me.Controls.Add(Me.btnExport)
         Me.Controls.Add(Me.cbReseedAndDelete)
         Me.Controls.Add(Me.GroupBox2)
@@ -410,4 +434,6 @@ Partial Class frmMigration
     Friend WithEvents clbAnalyzedTables As CheckedListBox
     Friend WithEvents lbInsertedTables As ListBox
     Friend WithEvents lblAmountInserted As Label
+    Friend WithEvents btnUnselectAll As Button
+    Friend WithEvents btnSelectAll As Button
 End Class
