@@ -6,7 +6,7 @@ Imports Microsoft.Office.Interop
 Imports System.IO
 
 Public Class frmMigration
-    Dim firstTable As String
+    Dim tables() As String
 
     Dim analyzedTables As List(Of String)
     Dim diffs As List(Of String)
@@ -22,7 +22,6 @@ Public Class frmMigration
         Me.txtDB2.Text = "BOFM"
         Me.txtUser1.Text = "sa"
         Me.txtUser2.Text = "sa"
-        Me.txtFirstTable.Text = "article"
         ' Solo para testing
 
         Thread.CurrentThread.CurrentCulture = New CultureInfo("en-BZ", False)
@@ -37,13 +36,12 @@ Public Class frmMigration
 
     Private Sub Analyze(Optional inverse As Boolean = False)
         Try
-            Me.connectToDatabase()
-
+            Me.tables = GetTopLevelParents().ToArray()
             Me.analyzedTables = New List(Of String)
-            Me.diffs = Me.getDiffs()
 
-            Me.GetRelations(Me.firstTable, inverse)
-
+            For Each table As String In Me.tables
+                Me.GetRelations(table, inverse)
+            Next
         Catch ex As Exception
             MsgBox(ex.Message, MsgBoxStyle.Critical, "Error")
             Throw ex
@@ -51,36 +49,38 @@ Public Class frmMigration
     End Sub
 
     Private Sub GetRelations(tableName As String, Optional inverse As Boolean = False)
-        Dim analyzedTablesVal As List(Of String) = analyzedTables
+        If Not diffs.Contains(tableName) Then
+            Dim analyzedTablesVal As List(Of String) = analyzedTables
 
-        Dim depTables = Me.getDepTables(tableName)
-        Dim refTables = Me.getRefTables(tableName)
+            Dim depTables = Me.getDepTables(tableName)
+            Dim refTables = Me.getRefTables(tableName)
 
-        depTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
-        refTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+            depTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
+            refTables.RemoveAll(Function(str) analyzedTablesVal.Contains(str))
 
-        If inverse Then
-            For Each depTable As String In depTables
-                Me.GetRelations(depTable, inverse)
-            Next
-        Else
-            For Each refTable As String In refTables
-                Me.GetRelations(refTable, inverse)
-            Next
-        End If
+            If inverse Then
+                For Each depTable As String In depTables
+                    Me.GetRelations(depTable, inverse)
+                Next
+            Else
+                For Each refTable As String In refTables
+                    Me.GetRelations(refTable, inverse)
+                Next
+            End If
 
-        If Not analyzedTables.Contains(tableName) Then
-            analyzedTables.Add(tableName)
-        End If
+            If Not analyzedTables.Contains(tableName) Then
+                analyzedTables.Add(tableName)
+            End If
 
-        If inverse Then
-            For Each refTable As String In refTables
-                Me.GetRelations(refTable, inverse)
-            Next
-        Else
-            For Each depTable As String In depTables
-                Me.GetRelations(depTable, inverse)
-            Next
+            If inverse Then
+                For Each refTable As String In refTables
+                    Me.GetRelations(refTable, inverse)
+                Next
+            Else
+                For Each depTable As String In depTables
+                    Me.GetRelations(depTable, inverse)
+                Next
+            End If
         End If
     End Sub
 
@@ -102,6 +102,7 @@ Public Class frmMigration
             End If
 
             ' Se vuelven a analizar las tablas pero de forma inversa
+            Me.diffs = GetDiffs()
             Me.Analyze(True)
 
             trans = sqlConn.CnDestination.BeginTransaction("TRANSFER")
@@ -109,12 +110,10 @@ Public Class frmMigration
 
             ' Inserts
             For Each tableName In analyzedTables
-                If Not Me.diffs.Contains(tableName) Then
-                    If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
-                        Me.Insert(tableName)
-                        progress += 1
-                        DirectCast(sender, BackgroundWorker).ReportProgress((progress * 100 / Me.analyzedTables.Count) / IIf(reseedAndDelete, 2, 1))
-                    End If
+                If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
+                    Me.Insert(tableName)
+                    progress += 1
+                    DirectCast(sender, BackgroundWorker).ReportProgress((progress * 100 / Me.analyzedTables.Count) / IIf(reseedAndDelete, 2, 1))
                 End If
             Next
 
@@ -126,6 +125,21 @@ Public Class frmMigration
             MsgBox(ex.Message, MsgBoxStyle.Critical, "Error de Migración")
         End Try
     End Sub
+
+    Private Function GetTopLevelParents() As List(Of String)
+        Dim topLevelParents As New List(Of String)
+        Dim dtParents As New DataTable()
+
+        sqlConn.CmdOrigin.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES LEFT JOIN sys.foreign_keys AS f ON TABLE_NAME = OBJECT_NAME(f.parent_object_id) WHERE TABLE_TYPE = 'BASE TABLE' AND OBJECT_NAME(f.parent_object_id) IS NULL"
+
+        sqlConn.DaOrigin.Fill(dtParents)
+
+        For i As Integer = 0 To dtParents.Rows.Count - 1
+            topLevelParents.Add(dtParents.Rows(i).Item("TABLE_NAME"))
+        Next
+
+        Return topLevelParents
+    End Function
 
     Private Function getNotMigratedTables() As List(Of String)
         Dim tablesOrigin As New DataTable
@@ -142,27 +156,38 @@ Public Class frmMigration
         Return tablesOriginStr.Except(insertedTables).ToList()
     End Function
 
-    Private Function getDiffs() As List(Of String)
-        Dim tablesOrigin As New DataTable
-        Dim tablesDestination As New DataTable
-        Dim tablesOriginStr As New List(Of String)
-        Dim tablesDestinationStr As New List(Of String)
+    Private Function GetDiffs() As List(Of String)
+        Dim dtDiffs As New DataTable
+        Dim diffs As New List(Of String)
 
-        sqlConn.CmdOrigin.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
-        sqlConn.CmdDestination.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
+        sqlConn.CmdOrigin.CommandText = "SELECT DB_NAME()"
+        Dim originTable As String = sqlConn.CmdOrigin.ExecuteScalar()
+        sqlConn.CmdDestination.CommandText = $"SELECT ISNULL(origin.TABLE_NAME, destination.TABLE_NAME) TABLE_NAME FROM {originTable}.INFORMATION_SCHEMA.TABLES origin FULL OUTER JOIN INFORMATION_SCHEMA.TABLES destination ON origin.TABLE_NAME = destination.TABLE_NAME WHERE (origin.TABLE_TYPE = 'BASE TABLE' OR destination.TABLE_TYPE = 'BASE TABLE') AND (origin.TABLE_NAME IS NULL OR destination.TABLE_NAME IS NULL)"
 
-        sqlConn.DaOrigin.Fill(tablesOrigin)
-        sqlConn.DaDestination.Fill(tablesDestination)
+        sqlConn.DaDestination.Fill(dtDiffs)
 
-        For i As Integer = 0 To tablesOrigin.Rows.Count - 1
-            tablesOriginStr.Add(tablesOrigin.Rows(i).Item("TABLE_NAME"))
+        For i As Integer = 0 To dtDiffs.Rows.Count - 1
+            diffs.Add(dtDiffs.Rows(i).Item("TABLE_NAME"))
         Next
 
-        For i As Integer = 0 To tablesDestination.Rows.Count - 1
-            tablesDestinationStr.Add(tablesDestination.Rows(i).Item("TABLE_NAME"))
+        Return diffs
+    End Function
+
+    Private Function GetOriginDiffs() As List(Of String)
+        Dim dtDiffs As New DataTable
+        Dim diffs As New List(Of String)
+
+        sqlConn.CmdOrigin.CommandText = "SELECT DB_NAME()"
+        Dim originTable As String = sqlConn.CmdOrigin.ExecuteScalar()
+        sqlConn.CmdDestination.CommandText = $"SELECT *, ISNULL(origin.TABLE_NAME, destination.TABLE_NAME) TABLE_NAME FROM {originTable}.INFORMATION_SCHEMA.TABLES origin LEFT JOIN INFORMATION_SCHEMA.TABLES destination ON origin.TABLE_NAME = destination.TABLE_NAME WHERE (origin.TABLE_TYPE = 'BASE TABLE' OR destination.TABLE_TYPE = 'BASE TABLE') AND destination.TABLE_NAME IS NULL "
+
+        sqlConn.DaDestination.Fill(dtDiffs)
+
+        For i As Integer = 0 To dtDiffs.Rows.Count - 1
+            diffs.Add(dtDiffs.Rows(i).Item("TABLE_NAME"))
         Next
 
-        Return tablesDestinationStr.Except(tablesOriginStr).ToList()
+        Return diffs
     End Function
 
     Private Sub ReseedAndDelete(tableName As String)
@@ -213,7 +238,16 @@ Public Class frmMigration
 
                 ' Se migran los datos
                 sqlConn.CmdDestination.CommandText = Me.generateInsertQuery(tableName, dtOrigin.Columns, dtDestination.Columns, row)
-                sqlConn.CmdDestination.ExecuteNonQuery()
+                If sqlConn.CmdDestination.CommandText <> String.Empty Then
+                    sqlConn.CmdDestination.ExecuteNonQuery()
+                    sqlConn.CmdDestination.Parameters.Clear()
+                Else
+                    If tableIsIdentity Then
+                        Me.changeIdentity(False, tableName)
+                    End If
+
+                    Exit For
+                End If
 
                 If tableIsIdentity Then
                     Me.changeIdentity(False, tableName)
@@ -225,6 +259,14 @@ Public Class frmMigration
             Throw ex
         End Try
     End Sub
+
+    Private Sub SelectTable(tableName As String, db As String)
+
+    End Sub
+
+    Private Function SelectTable2(tableName As String, db As String) As DataTable
+
+    End Function
 
     Private Function getDepTables(tableName As String) As List(Of String)
         Dim tables As New DataTable
@@ -255,10 +297,23 @@ Public Class frmMigration
     End Function
 
     Private Function generateInsertQuery(tableName As String, columnsOrigin As DataColumnCollection, columnsDestination As DataColumnCollection, row As DataRow) As String
-        Dim values As String = "("
-        Dim columnsNames As String = "("
+        Dim originColumnNames As New List(Of String)
+        Dim destinationColumnNames As New List(Of String)
 
-        For col As Int16 = 0 To columnsOrigin.Count - 1
+        Dim values As New List(Of String)
+        Dim columns As New List(Of String)
+
+        For Each colOrigin As DataColumn In columnsOrigin
+            originColumnNames.Add(colOrigin.ColumnName)
+        Next
+
+        For Each colDestination As DataColumn In columnsDestination
+            destinationColumnNames.Add(colDestination.ColumnName)
+        Next
+
+        columns = originColumnNames.Intersect(destinationColumnNames).ToList()
+
+        For Each col As String In columns
             Dim value As String
 
             ' Si es string se agregan comillas
@@ -278,15 +333,18 @@ Public Class frmMigration
                 value = IIf(row.Item(col), 1, 0)
             End If
 
-            If columnsDestination.Contains(columnsOrigin.Item(col).ColumnName) Then
-                columnsNames += $"{columnsOrigin.Item(col).ColumnName}, "
-                values += $"{value}, "
+            ' Si es array de bytes
+            If row.Item(col).GetType = GetType(Byte()) Then
+                Dim param As SqlClient.SqlParameter = sqlConn.CmdDestination.Parameters.Add($"@Content{columns.IndexOf(col)}", SqlDbType.VarBinary)
+                param.Value = CType(row.Item(col), Byte())
+                param.Size = CType(row.Item(col), Byte()).Count()
+                value = $"@Content{columns.IndexOf(col)}"
             End If
-        Next
-        columnsNames = $"{columnsNames.Remove(columnsNames.LastIndexOf(","))})"
-        values = $"{values.Remove(values.LastIndexOf(","))})"
 
-        Return $"insert into {tableName} {columnsNames} values {values}"
+            values.Add(value)
+        Next
+
+        Return IIf(columns.Count() > 0, $"insert into {tableName} ({String.Join(",", columns)}) values ({String.Join(",", values)})", Nothing)
     End Function
 
     Private Sub changeIdentity(active As Boolean, table As String)
@@ -340,11 +398,6 @@ Public Class frmMigration
 
     Private Sub btnAnalyze_Click(sender As Object, e As EventArgs) Handles btnAnalyze.Click
         Try
-            'Me.tables = New String() {"article"}
-            If txtFirstTable.Text <> String.Empty Then
-                Me.firstTable = txtFirstTable.Text
-            End If
-
             pbMigration.Style = ProgressBarStyle.Marquee
             bgwAnalyze.RunWorkerAsync()
         Catch ex As Exception
@@ -354,6 +407,8 @@ Public Class frmMigration
 
     Private Sub bgwAnalyze_DoWork(sender As Object, e As DoWorkEventArgs) Handles bgwAnalyze.DoWork
         Try
+            Me.connectToDatabase()
+            Me.diffs = Me.GetOriginDiffs()
             Me.Analyze()
         Catch ex As Exception
             e.Cancel = True
@@ -371,12 +426,12 @@ Public Class frmMigration
         btnMigrate.Enabled = True
         lblAnalyze.Text = "Seleccione las tablas que desea migrar."
         lblAmountAnalyzed.Text = $"Cantidad: {analyzedTables.Count()}"
-        clbAnalyzedTables.DataSource = analyzedTables
+        Dim source = analyzedTables.Select(Function(item) item.Clone).ToList()
+        source.Sort()
+        clbAnalyzedTables.DataSource = source
 
         For i As Int64 = 0 To clbAnalyzedTables.Items.Count - 1
-            If Not Me.diffs.Contains(clbAnalyzedTables.Items(i)) Then
-                clbAnalyzedTables.SetItemCheckState(i, CheckState.Checked)
-            End If
+            clbAnalyzedTables.SetItemCheckState(i, CheckState.Checked)
         Next
     End Sub
 
