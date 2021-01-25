@@ -12,6 +12,9 @@ Public Class frmMigration
     Dim diffs As List(Of String)
     Dim deletedTables As New List(Of String)
     Dim insertedTables As New List(Of String)
+    Dim originRows As New List(Of Integer)
+    Dim destinationRows As New List(Of Integer)
+    Dim insertedRows As New List(Of Integer)
     Dim notMigratedTables As New List(Of String)
 
     Dim sqlConn As New SQLConnection()
@@ -243,6 +246,8 @@ Public Class frmMigration
                     If sqlConn.CmdDestination.CommandText <> String.Empty Then
                         sqlConn.CmdDestination.ExecuteNonQuery()
 
+                        Console.WriteLine(sqlConn.CmdDestination.CommandText)
+
                         If sqlConn.CmdDestination.Parameters.Count > 0 Then
                             sqlConn.CmdDestination.Parameters.Clear()
                         End If
@@ -259,6 +264,16 @@ Public Class frmMigration
             Loop While dtOrigin.Rows.Count > 0 Or dtDestination.Rows.Count > 0
 
             insertedTables.Add(tableName)
+            originRows.Add(dtOrigin.Columns.Count)
+            destinationRows.Add(dtDestination.Columns.Count)
+
+            Dim insertedColumnsCount As Integer
+            For Each col As DataColumn In dtOrigin.Columns
+                If dtDestination.Columns.Contains(col.ColumnName) Then
+                    insertedColumnsCount += 1
+                End If
+            Next
+            insertedRows.Add(insertedColumnsCount)
         Catch ex As Exception
             Throw ex
         End Try
@@ -357,6 +372,11 @@ Public Class frmMigration
             ' Si es boolean se escribe 0 o 1
             If row.Item(col).GetType = GetType(Boolean) Then
                 value = IIf(row.Item(col), 1, 0)
+            End If
+
+            If row.Item(col).GetType = GetType(DateTime) Then
+                Dim dateVal As DateTime = DirectCast(row.Item(col), DateTime)
+                value = $"CONVERT(DATETIME, '{dateVal.Year}-{dateVal.Month}-{dateVal.Day} {dateVal.Hour}:{dateVal.Minute}:{dateVal.Second}.{dateVal.Millisecond}')"
             End If
 
             ' Si es array de bytes
@@ -475,20 +495,36 @@ Public Class frmMigration
             Dim worksheet As Excel.Worksheet = DirectCast(excel.ActiveSheet, Excel.Worksheet)
 
             worksheet.Cells(1, "A") = "Tablas Analizadas"
-            worksheet.Cells(1, "B") = "Tablas Migradas"
-            worksheet.Cells(1, "C") = "Tablas No Migradas"
+            worksheet.Cells(1, "B") = "Tablas No Migradas"
+            worksheet.Cells(1, "D") = "Tablas Migradas"
+            worksheet.Cells(1, "E") = "Columnas Origen"
+            worksheet.Cells(1, "F") = "Columnas Destino"
+            worksheet.Cells(1, "G") = "Columnas migradas"
 
             For i As Int64 = 1 To clbAnalyzedTables.Items.Count
                 worksheet.Cells(i + 1, "A") = clbAnalyzedTables.Items(i - 1)
             Next
 
-            For i As Int64 = 1 To lbInsertedTables.Items.Count
-                worksheet.Cells(i + 1, "B") = lbInsertedTables.Items(i - 1)
+            For i As Int64 = 1 To notMigratedTables.Count
+                worksheet.Cells(i + 1, "B") = notMigratedTables.ElementAt(i - 1)
             Next
 
-            For i As Int64 = 1 To notMigratedTables.Count
-                worksheet.Cells(i + 1, "C") = notMigratedTables.ElementAt(i - 1)
+            For i As Int64 = 1 To lbInsertedTables.Items.Count
+                worksheet.Cells(i + 1, "D") = lbInsertedTables.Items(i - 1)
             Next
+
+            For i As Int64 = 1 To originRows.Count
+                worksheet.Cells(i + 1, "E") = originRows.ElementAt(i - 1)
+            Next
+
+            For i As Int64 = 1 To destinationRows.Count
+                worksheet.Cells(i + 1, "F") = destinationRows.ElementAt(i - 1)
+            Next
+
+            For i As Int64 = 1 To insertedRows.Count
+                worksheet.Cells(i + 1, "G") = insertedRows.ElementAt(i - 1)
+            Next
+
 
             worksheet.Columns(1).AutoFit()
             worksheet.Columns(2).AutoFit()
