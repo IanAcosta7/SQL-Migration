@@ -12,9 +12,9 @@ Public Class frmMigration
     Dim diffs As List(Of String)
     Dim deletedTables As New List(Of String)
     Dim insertedTables As New List(Of String)
-    Dim originRows As New List(Of Integer)
-    Dim destinationRows As New List(Of Integer)
-    Dim insertedRows As New List(Of Integer)
+    Dim originColumns As New List(Of Integer)
+    Dim destinationColumns As New List(Of Integer)
+    Dim insertedColumns As New List(Of Integer)
     Dim notMigratedTables As New List(Of String)
 
     Dim sqlConn As New SQLConnection()
@@ -264,8 +264,8 @@ Public Class frmMigration
             Loop While dtOrigin.Rows.Count > 0 Or dtDestination.Rows.Count > 0
 
             insertedTables.Add(tableName)
-            originRows.Add(dtOrigin.Columns.Count)
-            destinationRows.Add(dtDestination.Columns.Count)
+            originColumns.Add(dtOrigin.Columns.Count)
+            destinationColumns.Add(dtDestination.Columns.Count)
 
             Dim insertedColumnsCount As Integer
             For Each col As DataColumn In dtOrigin.Columns
@@ -273,7 +273,7 @@ Public Class frmMigration
                     insertedColumnsCount += 1
                 End If
             Next
-            insertedRows.Add(insertedColumnsCount)
+            insertedColumns.Add(insertedColumnsCount)
         Catch ex As Exception
             Throw ex
         End Try
@@ -299,14 +299,6 @@ Public Class frmMigration
         dt.Columns.Remove("RowNum")
 
         Return dt
-    End Function
-
-    Private Sub SelectTable(tableName As String, db As String)
-
-    End Sub
-
-    Private Function SelectTable2(tableName As String, db As String) As DataTable
-
     End Function
 
     Private Function getDepTables(tableName As String) As List(Of String)
@@ -488,7 +480,6 @@ Public Class frmMigration
 
         If sfdExcelExport.ShowDialog() = DialogResult.OK Then
             Dim excel As New Excel.Application
-            excel.Visible = True
 
             excel.Workbooks.Add()
 
@@ -513,21 +504,23 @@ Public Class frmMigration
                 worksheet.Cells(i + 1, "D") = lbInsertedTables.Items(i - 1)
             Next
 
-            For i As Int64 = 1 To originRows.Count
-                worksheet.Cells(i + 1, "E") = originRows.ElementAt(i - 1)
+            For i As Int64 = 1 To originColumns.Count
+                worksheet.Cells(i + 1, "E") = originColumns.ElementAt(i - 1)
             Next
 
-            For i As Int64 = 1 To destinationRows.Count
-                worksheet.Cells(i + 1, "F") = destinationRows.ElementAt(i - 1)
+            For i As Int64 = 1 To destinationColumns.Count
+                worksheet.Cells(i + 1, "F") = destinationColumns.ElementAt(i - 1)
             Next
 
-            For i As Int64 = 1 To insertedRows.Count
-                worksheet.Cells(i + 1, "G") = insertedRows.ElementAt(i - 1)
+            For i As Int64 = 1 To insertedColumns.Count
+                worksheet.Cells(i + 1, "G") = insertedColumns.ElementAt(i - 1)
             Next
 
 
             worksheet.Columns(1).AutoFit()
             worksheet.Columns(2).AutoFit()
+
+            excel.Visible = True
 
             worksheet.SaveAs(sfdExcelExport.FileName)
         End If
