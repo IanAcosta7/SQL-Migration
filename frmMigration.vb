@@ -501,7 +501,7 @@ Public Class frmMigration
             Next
 
             For i As Int64 = 1 To lbInsertedTables.Items.Count
-                worksheet.Cells(i + 1, "D") = lbInsertedTables.Items(i - 1)
+                worksheet.Cells(i + 1, "D") = insertedTables.ElementAt(i - 1)
             Next
 
             For i As Int64 = 1 To originColumns.Count
