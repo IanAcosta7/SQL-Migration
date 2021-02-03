@@ -67,4 +67,9 @@
         xCmdOrigin.Connection = xCnOrigin
         xCmdDestination.Connection = xCnDestination
     End Sub
+
+    Public Sub Close()
+        xCnOrigin.Close()
+        xCnDestination.Close()
+    End Sub
 End Class

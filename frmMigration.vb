@@ -99,7 +99,7 @@ Public Class frmMigration
                     If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
                         Me.ReseedAndDelete(tableName)
                         progress += 1
-                        DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / (Me.clbAnalyzedTables.CheckedItems.Count * 2))
+                        DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / Me.clbAnalyzedTables.CheckedItems.Count)
                     End If
                 Next
             End If
@@ -111,12 +111,13 @@ Public Class frmMigration
             trans = sqlConn.CnDestination.BeginTransaction("TRANSFER")
             sqlConn.CmdDestination.Transaction = trans
 
+            progress = 0
             ' Inserts
             For Each tableName In analyzedTables
                 If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
                     Me.Insert(tableName)
                     progress += 1
-                    DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / (Me.clbAnalyzedTables.CheckedItems.Count * IIf(reseedAndDelete, 2, 1)))
+                    DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / Me.clbAnalyzedTables.CheckedItems.Count)
                 End If
             Next
 
@@ -244,6 +245,8 @@ Public Class frmMigration
                     ' Se migran los datos
                     sqlConn.CmdDestination.CommandText = Me.generateInsertQuery(tableName, dtOrigin.Columns, dtDestination.Columns, row)
                     If sqlConn.CmdDestination.CommandText <> String.Empty Then
+                        'sqlConn.Close()
+                        'connectToDatabase()
                         sqlConn.CmdDestination.ExecuteNonQuery()
 
                         Console.WriteLine(sqlConn.CmdDestination.CommandText)
@@ -422,9 +425,14 @@ Public Class frmMigration
     End Sub
 
     Private Sub bgwMigrate_ProgressChanged(sender As Object, e As ProgressChangedEventArgs) Handles bgwMigrate.ProgressChanged
-        lbInsertedTables.DataSource = Nothing
-        lbInsertedTables.DataSource = insertedTables
-        pbMigration.Value = e.ProgressPercentage
+        Try
+            lbInsertedTables.DataSource = Nothing
+            lbInsertedTables.DataSource = insertedTables
+            lblAmountInserted.Text = $"Cantidad: {insertedTables.Count()}"
+            pbMigration.Value = e.ProgressPercentage
+        Catch ex As Exception
+            MsgBox(ex.Message)
+        End Try
     End Sub
 
     Private Sub bgwMigrate_RunWorkerCompleted(sender As Object, e As RunWorkerCompletedEventArgs) Handles bgwMigrate.RunWorkerCompleted
