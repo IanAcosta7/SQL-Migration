@@ -88,8 +88,6 @@ Public Class frmMigration
     End Sub
 
     Private Sub Migrate(sender As Object, reseedAndDelete As Boolean)
-        Dim trans As SqlClient.SqlTransaction
-
         Try
             Dim progress = 0
 
@@ -108,24 +106,32 @@ Public Class frmMigration
             Me.diffs = GetDiffs()
             Me.Analyze(True)
 
-            trans = sqlConn.CnDestination.BeginTransaction("TRANSFER")
-            sqlConn.CmdDestination.Transaction = trans
-
             progress = 0
             ' Inserts
             For Each tableName In analyzedTables
                 If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
-                    Me.Insert(tableName)
-                    progress += 1
-                    DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / Me.clbAnalyzedTables.CheckedItems.Count)
+                    Dim trans As SqlClient.SqlTransaction
+                    trans = sqlConn.CnDestination.BeginTransaction("TRANSFER")
+                    sqlConn.CmdDestination.Transaction = trans
+
+                    Try
+                        Me.Insert(tableName)
+                        progress += 1
+                        DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / Me.clbAnalyzedTables.CheckedItems.Count)
+                        trans.Commit()
+                    Catch ex As Exception
+                        trans.Rollback()
+
+                        If Not MsgBox($"No se ha podido insertar la tabla {tableName}. ¿Desea continuar  la migración de todas formas?", vbYesNo + vbExclamation, "Error") Then
+                            Throw ex
+                        End If
+                    End Try
                 End If
             Next
 
             notMigratedTables = getNotMigratedTables()
 
-            trans.Commit()
         Catch ex As Exception
-            trans.Rollback()
             MsgBox(ex.Message, MsgBoxStyle.Critical, "Error de Migración")
         End Try
     End Sub
