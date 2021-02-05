@@ -91,6 +91,9 @@ Public Class frmMigration
         Try
             Dim progress = 0
 
+            ' Se conecta a la base de datos
+            connectToDatabase()
+
             ' Reseed and Delete
             If reseedAndDelete Then
                 For Each tableName In analyzedTables
