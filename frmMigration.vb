@@ -125,7 +125,10 @@ Public Class frmMigration
                     Catch ex As Exception
                         trans.Rollback()
 
-                        If Not MsgBox($"No se ha podido insertar la tabla {tableName}. ¿Desea continuar  la migración de todas formas?", vbYesNo + vbExclamation, "Error") Then
+                        If MsgBox($"No se ha podido insertar la tabla {tableName}. ¿Desea continuar  la migración de todas formas?", vbYesNo + vbExclamation, "Error") Then
+                            ' Reconexion a la base de datos
+                            connectToDatabase()
+                        Else
                             Throw ex
                         End If
                     End Try
