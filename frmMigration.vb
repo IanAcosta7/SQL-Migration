@@ -19,14 +19,6 @@ Public Class frmMigration
 
     Dim sqlConn As New SQLConnection()
     Private Sub frmMigration_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-
-        ' Solo para testing
-        Me.txtDB1.Text = "BizOneFashionMarketOld"
-        Me.txtDB2.Text = "BOFM"
-        Me.txtUser1.Text = "sa"
-        Me.txtUser2.Text = "sa"
-        ' Solo para testing
-
         Thread.CurrentThread.CurrentCulture = New CultureInfo("en-BZ", False)
         Thread.CurrentThread.CurrentCulture.ClearCachedData()
     End Sub
