@@ -56,6 +56,7 @@ Partial Class frmMigration
         Me.btnExport = New System.Windows.Forms.Button()
         Me.btnUnselectAll = New System.Windows.Forms.Button()
         Me.btnSelectAll = New System.Windows.Forms.Button()
+        Me.lblProgressText = New System.Windows.Forms.Label()
         Me.gbOrigin.SuspendLayout()
         Me.gbDestination.SuspendLayout()
         Me.GroupBox1.SuspendLayout()
@@ -302,6 +303,7 @@ Partial Class frmMigration
         '
         'GroupBox2
         '
+        Me.GroupBox2.Controls.Add(Me.lblProgressText)
         Me.GroupBox2.Controls.Add(Me.lblAmountInserted)
         Me.GroupBox2.Controls.Add(Me.lbInsertedTables)
         Me.GroupBox2.Location = New System.Drawing.Point(403, 174)
@@ -370,6 +372,14 @@ Partial Class frmMigration
         Me.btnSelectAll.Text = "Seleccionar todo"
         Me.btnSelectAll.UseVisualStyleBackColor = True
         '
+        'lblProgressText
+        '
+        Me.lblProgressText.AutoSize = True
+        Me.lblProgressText.Location = New System.Drawing.Point(6, 239)
+        Me.lblProgressText.Name = "lblProgressText"
+        Me.lblProgressText.Size = New System.Drawing.Size(0, 13)
+        Me.lblProgressText.TabIndex = 30
+        '
         'frmMigration
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
@@ -397,6 +407,7 @@ Partial Class frmMigration
         Me.GroupBox1.ResumeLayout(False)
         Me.GroupBox1.PerformLayout()
         Me.GroupBox2.ResumeLayout(False)
+        Me.GroupBox2.PerformLayout()
         Me.ResumeLayout(False)
         Me.PerformLayout()
 
@@ -436,4 +447,5 @@ Partial Class frmMigration
     Friend WithEvents lblAmountInserted As Label
     Friend WithEvents btnUnselectAll As Button
     Friend WithEvents btnSelectAll As Button
+    Friend WithEvents lblProgressText As Label
 End Class

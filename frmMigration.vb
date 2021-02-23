@@ -16,6 +16,7 @@ Public Class frmMigration
     Dim destinationColumns As New List(Of Integer)
     Dim insertedColumns As New List(Of Integer)
     Dim notMigratedTables As New List(Of String)
+    Dim progressText As String = ""
 
     Dim sqlConn As New SQLConnection()
     Private Sub frmMigration_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -31,7 +32,7 @@ Public Class frmMigration
         Thread.CurrentThread.CurrentCulture.ClearCachedData()
     End Sub
 
-    Private Sub connectToDatabase()
+    Private Sub ConnectToDatabase()
         If Not Me.sqlConn.IsOpen() Then
             Me.sqlConn.Open(Me.txtServer1.Text, Me.txtDB1.Text, Me.txtUser1.Text, Me.txtPass1.Text, Me.txtServer2.Text, Me.txtDB2.Text, Me.txtUser2.Text, Me.txtPass2.Text)
         End If
@@ -92,11 +93,12 @@ Public Class frmMigration
             Dim progress = 0
 
             ' Se conecta a la base de datos
-            connectToDatabase()
+            ConnectToDatabase()
 
             ' Reseed and Delete
             If reseedAndDelete Then
                 For Each tableName In analyzedTables
+                    progressText = $"Borrando: {tableName}"
                     If clbAnalyzedTables.CheckedItems.Contains(tableName) Then
                         Me.ReseedAndDelete(tableName)
                         progress += 1
@@ -104,6 +106,8 @@ Public Class frmMigration
                     End If
                 Next
             End If
+
+            progressText = "Analizando..."
 
             ' Se vuelven a analizar las tablas pero de forma inversa
             Me.diffs = GetDiffs()
@@ -117,6 +121,9 @@ Public Class frmMigration
                     trans = sqlConn.CnDestination.BeginTransaction("TRANSFER")
                     sqlConn.CmdDestination.Transaction = trans
 
+                    progressText = $"Migrando: {tableName}"
+                    DirectCast(sender, BackgroundWorker).ReportProgress(progress * 100 / Me.clbAnalyzedTables.CheckedItems.Count)
+
                     Try
                         Me.Insert(tableName)
                         progress += 1
@@ -125,9 +132,13 @@ Public Class frmMigration
                     Catch ex As Exception
                         trans.Rollback()
 
-                        If MsgBox($"No se ha podido insertar la tabla {tableName}. ¿Desea continuar  la migración de todas formas?", vbYesNo + vbExclamation, "Error") Then
+                        If MsgBox($"No se ha podido insertar la tabla {tableName}. ¿Desea continuar  la migración de todas formas?", vbYesNo + vbExclamation, "Error") = MsgBoxResult.Yes Then
                             ' Reconexion a la base de datos
-                            connectToDatabase()
+                            ConnectToDatabase()
+
+                            If Me.HasIdentity(tableName) Then
+                                Me.SetIdentityInsert(False, tableName)
+                            End If
                         Else
                             Throw ex
                         End If
@@ -138,7 +149,8 @@ Public Class frmMigration
             notMigratedTables = getNotMigratedTables()
 
         Catch ex As Exception
-            MsgBox(ex.Message, MsgBoxStyle.Critical, "Error de Migración")
+            MsgBox(ex.Message, MsgBoxStyle.Critical, "Error en la Migración")
+            Throw ex
         End Try
     End Sub
 
@@ -208,13 +220,7 @@ Public Class frmMigration
 
     Private Sub ReseedAndDelete(tableName As String)
         Try
-            Dim tableIsIdentity As Boolean
-            Dim dtDestination As New DataTable
-
-            sqlConn.CmdDestination.CommandText = $"select top 0 * from {tableName}"
-            sqlConn.DaDestination.Fill(dtDestination)
-
-            tableIsIdentity = Me.checkIdentity(dtDestination.Clone(), tableName)
+            Dim tableIsIdentity As Boolean = Me.HasIdentity(tableName)
 
             ' Se borra la tabla
             sqlConn.CmdDestination.CommandText = $"delete from {tableName}"
@@ -244,12 +250,12 @@ Public Class frmMigration
                 dtDestination = SelectPage(tableName, page, "destination")
 
                 If tableIsIdentity = Nothing Then
-                    tableIsIdentity = Me.checkIdentity(dtDestination.Clone(), tableName)
+                    tableIsIdentity = Me.HasIdentity(tableName)
                 End If
 
                 ' Si es identidad se pone en on
                 If tableIsIdentity Then
-                    Me.changeIdentity(True, tableName)
+                    Me.SetIdentityInsert(True, tableName)
                 End If
 
                 For Each row As DataRow In dtOrigin.Rows
@@ -257,8 +263,6 @@ Public Class frmMigration
                     ' Se migran los datos
                     sqlConn.CmdDestination.CommandText = Me.generateInsertQuery(tableName, dtOrigin.Columns, dtDestination.Columns, row)
                     If sqlConn.CmdDestination.CommandText <> String.Empty Then
-                        'sqlConn.Close()
-                        'connectToDatabase()
                         sqlConn.CmdDestination.ExecuteNonQuery()
 
                         Console.WriteLine(sqlConn.CmdDestination.CommandText)
@@ -272,7 +276,7 @@ Public Class frmMigration
                 Next
 
                 If tableIsIdentity Then
-                    Me.changeIdentity(False, tableName)
+                    Me.SetIdentityInsert(False, tableName)
                 End If
 
                 page += 1
@@ -400,7 +404,7 @@ Public Class frmMigration
         Return IIf(columns.Count() > 0, $"insert into {tableName} ({String.Join(",", columns)}) values ({String.Join(",", values)})", Nothing)
     End Function
 
-    Private Sub changeIdentity(active As Boolean, table As String)
+    Private Sub SetIdentityInsert(active As Boolean, table As String)
         Try
             sqlConn.CmdDestination.CommandText = $"SET IDENTITY_INSERT {table} {IIf(active, "ON", "OFF")}"
 
@@ -410,21 +414,15 @@ Public Class frmMigration
         End Try
     End Sub
 
-    Private Function checkIdentity(dt As DataTable, tableName As String) As Boolean
+    Private Function HasIdentity(tableName As String) As Boolean
         Dim isIdentity As Boolean = False
 
         Try
-            For Each column As DataColumn In dt.Columns
+            sqlConn.CmdDestination.CommandText = $"SELECT COUNT(*) 'HAS_IDENTITY' FROM SYS.IDENTITY_COLUMNS WHERE OBJECT_NAME(OBJECT_ID) = '{tableName}' AND OBJECT_SCHEMA_NAME(object_id) = 'dbo'"
 
-                sqlConn.CmdDestination.CommandText = $"Select is_identity From sys.columns Where Name = '{column.ColumnName}' AND object_id = OBJECT_ID('{tableName}')"
-
-                If sqlConn.CmdDestination.ExecuteScalar() Then
-                    isIdentity = True
-                    Exit For
-                End If
-
-            Next
-
+            If sqlConn.CmdDestination.ExecuteScalar() > 0 Then
+                isIdentity = True
+            End If
         Catch ex As Exception
             MsgBox(ex.Message)
         End Try
@@ -433,13 +431,18 @@ Public Class frmMigration
     End Function
 
     Private Sub bgwMigrate_DoWork(sender As Object, e As System.ComponentModel.DoWorkEventArgs) Handles bgwMigrate.DoWork
-        Me.Migrate(sender, cbReseedAndDelete.Checked)
+        Try
+            Me.Migrate(sender, cbReseedAndDelete.Checked)
+        Catch ex As Exception
+            e.Cancel = True
+        End Try
     End Sub
 
     Private Sub bgwMigrate_ProgressChanged(sender As Object, e As ProgressChangedEventArgs) Handles bgwMigrate.ProgressChanged
         Try
             lbInsertedTables.DataSource = Nothing
             lbInsertedTables.DataSource = insertedTables
+            lblProgressText.Text = progressText
             lblAmountInserted.Text = $"Cantidad: {insertedTables.Count()}"
             pbMigration.Value = e.ProgressPercentage
         Catch ex As Exception
@@ -448,14 +451,23 @@ Public Class frmMigration
     End Sub
 
     Private Sub bgwMigrate_RunWorkerCompleted(sender As Object, e As RunWorkerCompletedEventArgs) Handles bgwMigrate.RunWorkerCompleted
-        lbInsertedTables.DataSource = Nothing
-        lbInsertedTables.DataSource = insertedTables
-        lblAmountInserted.Text = $"Cantidad: {insertedTables.Count()}"
-        pbMigration.Value = 0
+        gbOrigin.Enabled = True
+        gbDestination.Enabled = True
+        If Not e.Cancelled Then
+            lbInsertedTables.DataSource = Nothing
+            lbInsertedTables.DataSource = insertedTables
+            lblAmountInserted.Text = $"Cantidad: {insertedTables.Count()}"
+            pbMigration.Value = 0
+            lblProgressText.Text = ""
+
+            MsgBox("Migración realizada con éxito.", MsgBoxStyle.Information, "Finalizado")
+        End If
     End Sub
 
     Private Sub btnAnalyze_Click(sender As Object, e As EventArgs) Handles btnAnalyze.Click
         Try
+            gbOrigin.Enabled = False
+            gbDestination.Enabled = False
             pbMigration.Style = ProgressBarStyle.Marquee
             bgwAnalyze.RunWorkerAsync()
         Catch ex As Exception
@@ -465,9 +477,9 @@ Public Class frmMigration
 
     Private Sub bgwAnalyze_DoWork(sender As Object, e As DoWorkEventArgs) Handles bgwAnalyze.DoWork
         Try
-            Me.connectToDatabase()
-            Me.diffs = Me.GetOriginDiffs()
-            Me.Analyze()
+            ConnectToDatabase()
+            diffs = Me.GetOriginDiffs()
+            Analyze()
         Catch ex As Exception
             e.Cancel = True
         End Try
@@ -479,18 +491,23 @@ Public Class frmMigration
     End Sub
 
     Private Sub bgwAnalyze_RunWorkerCompleted(sender As Object, e As RunWorkerCompletedEventArgs) Handles bgwAnalyze.RunWorkerCompleted
+        gbOrigin.Enabled = True
+        gbDestination.Enabled = True
         pbMigration.Style = ProgressBarStyle.Blocks
-        cbReseedAndDelete.Enabled = True
-        btnMigrate.Enabled = True
-        lblAnalyze.Text = "Seleccione las tablas que desea migrar."
-        lblAmountAnalyzed.Text = $"Cantidad: {analyzedTables.Count()}"
-        Dim source = analyzedTables.Select(Function(item) item.Clone).ToList()
-        source.Sort()
-        clbAnalyzedTables.DataSource = source
 
-        For i As Int64 = 0 To clbAnalyzedTables.Items.Count - 1
-            clbAnalyzedTables.SetItemCheckState(i, CheckState.Checked)
-        Next
+        If Not e.Cancelled Then
+            cbReseedAndDelete.Enabled = True
+            btnMigrate.Enabled = True
+            lblAnalyze.Text = "Seleccione las tablas que desea migrar."
+            lblAmountAnalyzed.Text = $"Cantidad: {analyzedTables.Count()}"
+            Dim source = analyzedTables.Select(Function(item) item.Clone).ToList()
+            source.Sort()
+            clbAnalyzedTables.DataSource = source
+
+            For i As Int64 = 0 To clbAnalyzedTables.Items.Count - 1
+                clbAnalyzedTables.SetItemCheckState(i, CheckState.Checked)
+            Next
+        End If
     End Sub
 
     Private Sub btnExport_Click(sender As Object, e As EventArgs) Handles btnExport.Click
@@ -540,14 +557,14 @@ Public Class frmMigration
             worksheet.Columns(1).AutoFit()
             worksheet.Columns(2).AutoFit()
 
-            excel.Visible = True
-
             worksheet.SaveAs(sfdExcelExport.FileName)
         End If
     End Sub
 
     Private Sub btnMigrate_Click(sender As Object, e As EventArgs) Handles btnMigrate.Click
         Try
+            gbOrigin.Enabled = False
+            gbDestination.Enabled = False
             lblAnalyze.Text = ""
             bgwMigrate.RunWorkerAsync()
         Catch ex As Exception
