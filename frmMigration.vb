@@ -257,8 +257,6 @@ Public Class frmMigration
                     If sqlConn.CmdDestination.CommandText <> String.Empty Then
                         sqlConn.CmdDestination.ExecuteNonQuery()
 
-                        Console.WriteLine(sqlConn.CmdDestination.CommandText)
-
                         If sqlConn.CmdDestination.Parameters.Count > 0 Then
                             sqlConn.CmdDestination.Parameters.Clear()
                         End If
